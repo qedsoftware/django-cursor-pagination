@@ -1,7 +1,8 @@
 from base64 import b64decode, b64encode
 from collections.abc import Sequence
+from typing import Type
 
-from django.db.models import F, Q, TextField, Value
+from django.db.models import F, Field, Q, Value
 from django.utils.translation import gettext_lazy as _
 
 
@@ -42,9 +43,10 @@ class CursorPaginator(object):
     none_string = '::None'
     invalid_cursor_message = _('Invalid cursor')
 
-    def __init__(self, queryset, ordering):
+    def __init__(self, queryset, ordering, field_types: Sequence[Type[Field]]):
         self.queryset = queryset.order_by(*self._nulls_ordering(ordering))
         self.ordering = ordering
+        self.field_types = field_types
 
     def _nulls_ordering(self, ordering, from_last=False):
         """
@@ -150,7 +152,10 @@ class CursorPaginator(object):
         filtering = Q()
         q_equality = {}
 
-        position_values = [Value(pos, output_field=TextField()) if pos is not None else None for pos in position]
+        position_values = [
+            Value(pos, output_field=field_type()) if pos is not None else None
+            for pos, field_type in zip(position, self.field_types, strict=True)
+        ]
 
         for ordering, value in zip(self.ordering, position_values):
             is_reversed = ordering.startswith('-')
